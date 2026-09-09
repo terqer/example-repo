@@ -44,7 +44,7 @@ jobs:
 
       - name: Logic tests
         working-directory: src
-        run: dotnet run --project tests/ChatGPTUsageWidget.Tests/ChatGPTUsageWidget.Tests.csproj -c Release
+        run: dotnet run --project tests/ChatGPTUsageWidget.Tests/ChatGPTUsageWidget.Tests.csproj -c Release -r win-x64 -p:SelfContained=true
 
       - name: Publish self-contained EXE
         shell: pwsh
