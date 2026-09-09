@@ -21,9 +21,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src050 -Force | Out-Null
-          $parts = Get-ChildItem .\source050\part.* | Sort-Object Name
-          if ($parts.Count -ne 5) { throw "Expected 5 source parts, found $($parts.Count)." }
-          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $partNames = @(
+            'part.00',
+            'part.01',
+            'part.02.00',
+            'part.02.01',
+            'part.02.02',
+            'part.02.03',
+            'part.03',
+            'part.04'
+          )
+          $missing = $partNames | Where-Object { -not (Test-Path (Join-Path '.\source050' $_)) }
+          if ($missing) { throw "Missing source parts: $($missing -join ', ')" }
+          $b64 = ($partNames | ForEach-Object { Get-Content (Join-Path '.\source050' $_) -Raw }) -join ''
           [IO.File]::WriteAllBytes('.\source050\source.zip', [Convert]::FromBase64String($b64))
           $sha = (Get-FileHash .\source050\source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($sha -ne '66185086ab011cf519264edcd2ef333674b843152e70d593476219a51bdcefa2') { throw "Source package hash mismatch: $sha" }
