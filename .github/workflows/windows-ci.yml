@@ -21,12 +21,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src -Force | Out-Null
-          $parts = Get-ChildItem .\source\chunk.*.b64 | Sort-Object Name
-          if ($parts.Count -ne 9) { throw "Expected 9 source chunks, found $($parts.Count)." }
-          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          $b64 = Get-Content .\source\source.b64 -Raw
           [IO.File]::WriteAllBytes('.\source\source.zip', [Convert]::FromBase64String($b64))
           $sha = (Get-FileHash .\source\source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne '6532a347537b823020348ed4813de15e05d224696e6ec246756ff9fc581db1f2') { throw "Source package hash mismatch: $sha" }
+          if ($sha -ne 'c8b63c127aa46ac1bfbe0d16c5eb5e2736e9e73678da5e0e6bc5321a30822c57') { throw "Source package hash mismatch: $sha" }
           tar -xf .\source\source.zip -C .\src
           if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
 
@@ -37,17 +35,6 @@ jobs:
       - name: Build
         working-directory: src
         run: dotnet build ChatGPTUsageWidget.csproj -c Release --no-restore
-
-      - name: Prepare test harness
-        working-directory: src
-        shell: pwsh
-        run: |
-          $path = '.\tests\ChatGPTUsageWidget.Tests\Program.cs'
-          $text = Get-Content $path -Raw
-          if ($text -notmatch 'using System\.IO;') {
-            $text = $text.Replace('using System.Text.Json;', "using System.Text.Json;`r`nusing System.IO;")
-            [IO.File]::WriteAllText((Resolve-Path $path), $text, [Text.UTF8Encoding]::new($false))
-          }
 
       - name: Logic tests
         working-directory: src
@@ -79,7 +66,7 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ChatGPTUsageWidget-0.3.0-win-x64
+          name: ChatGPTUsageWidget-0.4.0-win-x64
           path: artifact/*
           if-no-files-found: error
           retention-days: 30
