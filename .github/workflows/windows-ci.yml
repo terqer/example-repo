@@ -27,7 +27,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src -Force | Out-Null
-          Expand-Archive -Path .\source\ChatGPTUsageWidget-0.2.1-source.zip -DestinationPath .\src -Force
+          tar -xf .\source\ChatGPTUsageWidget-0.2.1-source.zip -C .\src
+          if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
 
       - name: Restore
         working-directory: src
