@@ -1,0 +1,68 @@
+name: Source Snapshot
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rebuild source package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path src050 -Force | Out-Null
+          $partNames = @(
+            'part.00',
+            'part.01',
+            'part.02.00',
+            'part.02.01',
+            'part.02.02',
+            'part.02.03',
+            'part.03',
+            'part.04'
+          )
+          $b64 = ($partNames | ForEach-Object { Get-Content (Join-Path '.\source050' $_) -Raw }) -join ''
+          [IO.File]::WriteAllBytes('.\source050\source.zip', [Convert]::FromBase64String($b64))
+          tar -xf .\source050\source.zip -C .\src050
+
+      - name: Apply current compile fixes
+        shell: pwsh
+        run: |
+          @'
+          global using Application = System.Windows.Application;
+          global using Point = System.Windows.Point;
+          global using Size = System.Windows.Size;
+          global using Brush = System.Windows.Media.Brush;
+          global using Pen = System.Windows.Media.Pen;
+          global using Color = System.Windows.Media.Color;
+          global using ColorConverter = System.Windows.Media.ColorConverter;
+          global using FontFamily = System.Windows.Media.FontFamily;
+          global using MessageBox = System.Windows.MessageBox;
+          global using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+          global using Cursors = System.Windows.Input.Cursors;
+          global using Button = System.Windows.Controls.Button;
+          global using Condition = System.Windows.Automation.Condition;
+          global using WpfFlowDirection = System.Windows.FlowDirection;
+          '@ | Set-Content .\src050\GlobalAliases.cs -Encoding UTF8
+          $proj = Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw
+          $proj = $proj -replace '(?s)\s*<ItemGroup>\s*<Reference Include="UIAutomationClient"\s*/>\s*<Reference Include="UIAutomationTypes"\s*/>\s*</ItemGroup>', ''
+          Set-Content .\src050\ChatGPTUsageWidget.csproj $proj -Encoding UTF8
+          $widget = Get-Content .\src050\WidgetWindow.xaml.cs -Raw
+          $widget = $widget.Replace('var left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;', 'bool left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;')
+          Set-Content .\src050\WidgetWindow.xaml.cs $widget -Encoding UTF8
+          $surface = Get-Content .\src050\Controls\UsageSurface.cs -Raw
+          $surface = $surface.Replace('FlowDirection.LeftToRight', 'WpfFlowDirection.LeftToRight')
+          Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
+
+      - name: Upload reconstructed source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPTUsageWidget-0.5.0-source-reconstructed
+          path: src050/**
+          if-no-files-found: error
+          retention-days: 2
