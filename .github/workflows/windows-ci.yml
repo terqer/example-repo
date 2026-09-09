@@ -33,6 +33,11 @@ jobs:
           [IO.File]::WriteAllBytes('.\source\source.zip', [Convert]::FromBase64String($b64))
           tar -xf .\source\source.zip -C .\src
           if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
+          $testFile = '.\src\tests\ChatGPTUsageWidget.Tests\Program.cs'
+          $testSource = Get-Content $testFile -Raw
+          if ($testSource -notmatch 'using System\.IO;') {
+            [IO.File]::WriteAllText($testFile, "using System.IO;`r`n" + $testSource, [Text.UTF8Encoding]::new($false))
+          }
 
       - name: Restore
         working-directory: src
