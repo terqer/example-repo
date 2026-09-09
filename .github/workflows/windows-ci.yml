@@ -89,6 +89,11 @@ jobs:
           git -C .\src050 apply ..\v051.patch
           if ($LASTEXITCODE -ne 0) { throw 'git apply failed.' }
           if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
+          $tests = Get-Content .\src050\tests\ChatGPTUsageWidget.Tests\Program.cs -Raw
+          $tests = $tests.Replace('settings.SchemaVersion == 5', 'settings.SchemaVersion == 6')
+          $tests = $tests.Replace('Width == 48 && settings.Widgets[0].Height == 22', 'Width == 44 && settings.Widgets[0].Height == 22')
+          $tests = $tests.Replace('Taskbar.Width == 48 && settings.Taskbar.Height == 22', 'Taskbar.Width == 44 && settings.Taskbar.Height == 22')
+          Set-Content .\src050\tests\ChatGPTUsageWidget.Tests\Program.cs $tests -Encoding UTF8
 
       - name: Restore
         working-directory: src050
