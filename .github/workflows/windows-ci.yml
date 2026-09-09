@@ -40,7 +40,7 @@ jobs:
           tar -xf .\source050\source.zip -C .\src050
           if (-not (Test-Path .\src050\ChatGPTUsageWidget.csproj)) { throw 'Source package did not extract correctly.' }
 
-      - name: Patch WPF aliases and framework references
+      - name: Recreate verified 0.5.0 compile baseline
         shell: pwsh
         run: |
           @'
@@ -59,15 +59,34 @@ jobs:
           global using Condition = System.Windows.Automation.Condition;
           global using WpfFlowDirection = System.Windows.FlowDirection;
           '@ | Set-Content .\src050\GlobalAliases.cs -Encoding UTF8
+
           $proj = Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw
           $proj = $proj -replace '(?s)\s*<ItemGroup>\s*<Reference Include="UIAutomationClient"\s*/>\s*<Reference Include="UIAutomationTypes"\s*/>\s*</ItemGroup>', ''
           Set-Content .\src050\ChatGPTUsageWidget.csproj $proj -Encoding UTF8
+
           $widget = Get-Content .\src050\WidgetWindow.xaml.cs -Raw
           $widget = $widget.Replace('var left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;', 'bool left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;')
           Set-Content .\src050\WidgetWindow.xaml.cs $widget -Encoding UTF8
+
           $surface = Get-Content .\src050\Controls\UsageSurface.cs -Raw
           $surface = $surface.Replace('FlowDirection.LeftToRight', 'WpfFlowDirection.LeftToRight')
           Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
+
+      - name: Apply 0.5.1 redesign patch
+        shell: pwsh
+        run: |
+          $b64 = Get-Content .\patch051\v051.patch.gz.b64 -Raw
+          [IO.File]::WriteAllBytes('.\v051.patch.gz', [Convert]::FromBase64String($b64))
+          $in = [IO.File]::OpenRead('.\v051.patch.gz')
+          $gz = [IO.Compression.GzipStream]::new($in, [IO.Compression.CompressionMode]::Decompress)
+          $out = [IO.File]::Create('.\v051.patch')
+          $gz.CopyTo($out)
+          $out.Dispose(); $gz.Dispose(); $in.Dispose()
+          $patchSha = (Get-FileHash .\v051.patch -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($patchSha -ne '230572315ade3f015fd835097bfae065dd8bccf8cba0f81ca1be4c7c671d8efe') { throw "Patch hash mismatch: $patchSha" }
+          git -C .\src050 init
+          git -C .\src050 apply ..\v051.patch
+          if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
 
       - name: Restore
         working-directory: src050
@@ -93,8 +112,13 @@ jobs:
         working-directory: src050
         shell: pwsh
         run: |
+          $preview = Join-Path (Get-Location) 'preview'
+          New-Item -ItemType Directory -Path $preview -Force | Out-Null
+          $env:CHATGPT_WIDGET_PREVIEW_DIR = $preview
           $p = Start-Process -FilePath '.\dist\ChatGPTUsageWidget.exe' -ArgumentList '--smoke-test' -Wait -PassThru -NoNewWindow
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
+          $images = @(Get-ChildItem .\preview -Filter *.png)
+          if ($images.Count -lt 12) { throw "Expected at least 12 UI preview images, found $($images.Count)." }
 
       - name: Prepare artifact
         shell: pwsh
@@ -107,7 +131,15 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ChatGPTUsageWidget-0.5.0-win-x64
+          name: ChatGPTUsageWidget-0.5.1-win-x64
           path: artifact/*
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload UI previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPTUsageWidget-0.5.1-ui-previews
+          path: src050/preview/*.png
+          if-no-files-found: error
+          retention-days: 7
