@@ -75,7 +75,10 @@ jobs:
       - name: Apply 0.5.1 redesign patch
         shell: pwsh
         run: |
-          $b64 = Get-Content .\patch051\v051.patch.gz.b64 -Raw
+          $patchParts = 0..5 | ForEach-Object { '.\patch051\chunk.{0:D2}' -f $_ }
+          $missing = $patchParts | Where-Object { -not (Test-Path $_) }
+          if ($missing) { throw "Missing patch chunks: $($missing -join ', ')" }
+          $b64 = (($patchParts | ForEach-Object { Get-Content $_ -Raw }) -join '') -replace '\s',''
           [IO.File]::WriteAllBytes('.\v051.patch.gz', [Convert]::FromBase64String($b64))
           $in = [IO.File]::OpenRead('.\v051.patch.gz')
           $gz = [IO.Compression.GzipStream]::new($in, [IO.Compression.CompressionMode]::Decompress)
