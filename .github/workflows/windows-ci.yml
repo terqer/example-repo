@@ -40,6 +40,20 @@ jobs:
           tar -xf .\source050\source.zip -C .\src050
           if (-not (Test-Path .\src050\ChatGPTUsageWidget.csproj)) { throw 'Source package did not extract correctly.' }
 
+      - name: Patch WPF aliases and framework references
+        shell: pwsh
+        run: |
+          @'
+          global using Application = System.Windows.Application;
+          global using Point = System.Windows.Point;
+          global using Size = System.Windows.Size;
+          global using Brush = System.Windows.Media.Brush;
+          global using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+          '@ | Set-Content .\src050\GlobalAliases.cs -Encoding UTF8
+          $proj = Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw
+          $proj = $proj -replace '(?s)\s*<ItemGroup>\s*<Reference Include="UIAutomationClient"\s*/>\s*<Reference Include="UIAutomationTypes"\s*/>\s*</ItemGroup>', ''
+          Set-Content .\src050\ChatGPTUsageWidget.csproj $proj -Encoding UTF8
+
       - name: Restore
         working-directory: src050
         run: dotnet restore ChatGPTUsageWidget.csproj
