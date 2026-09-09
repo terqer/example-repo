@@ -3,17 +3,11 @@ name: Windows CI
 on:
   push:
     branches: [ main ]
-  pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build-test-publish:
     runs-on: windows-latest
-    timeout-minutes: 20
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,21 +17,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Rebuild tested source package
+      - name: Rebuild source package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src -Force | Out-Null
           $parts = Get-ChildItem .\source\chunk.*.b64 | Sort-Object Name
-          if ($parts.Count -ne 7) { throw "Expected 7 source chunks, found $($parts.Count)." }
+          if ($parts.Count -ne 9) { throw "Expected 9 source chunks, found $($parts.Count)." }
           $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
           [IO.File]::WriteAllBytes('.\source\source.zip', [Convert]::FromBase64String($b64))
+          $sha = (Get-FileHash .\source\source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '6532a347537b823020348ed4813de15e05d224696e6ec246756ff9fc581db1f2') { throw "Source package hash mismatch: $sha" }
           tar -xf .\source\source.zip -C .\src
           if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
-          $testFile = '.\src\tests\ChatGPTUsageWidget.Tests\Program.cs'
-          $testSource = Get-Content $testFile -Raw
-          if ($testSource -notmatch 'using System\.IO;') {
-            [IO.File]::WriteAllText($testFile, "using System.IO;`r`n" + $testSource, [Text.UTF8Encoding]::new($false))
-          }
 
       - name: Restore
         working-directory: src
@@ -49,45 +40,35 @@ jobs:
 
       - name: Logic tests
         working-directory: src
-        run: dotnet run --project tests/ChatGPTUsageWidget.Tests/ChatGPTUsageWidget.Tests.csproj -c Release -r win-x64 -p:SelfContained=true
+        run: dotnet run --project tests/ChatGPTUsageWidget.Tests/ChatGPTUsageWidget.Tests.csproj -c Release
 
       - name: Publish self-contained EXE
-        shell: pwsh
         working-directory: src
+        shell: pwsh
         run: |
-          dotnet publish ChatGPTUsageWidget.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -o publish `
-            /p:PublishSingleFile=true `
-            /p:IncludeNativeLibrariesForSelfExtract=true `
-            /p:EnableCompressionInSingleFile=true `
-            /p:DebugType=None `
-            /p:DebugSymbols=false
+          if (Test-Path .\dist) { Remove-Item .\dist -Recurse -Force }
+          dotnet publish .\ChatGPTUsageWidget.csproj -c Release -r win-x64 --self-contained true -o .\dist /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:DebugType=None /p:DebugSymbols=false
+          if (-not (Test-Path .\dist\ChatGPTUsageWidget.exe)) { throw 'Published EXE not found.' }
 
-      - name: WPF startup smoke test
-        shell: pwsh
+      - name: WPF startup and render smoke test
         working-directory: src
+        shell: pwsh
         run: |
-          $p = Start-Process -FilePath ".\publish\ChatGPTUsageWidget.exe" -ArgumentList "--smoke-test" -PassThru -Wait
-          if ($p.ExitCode -ne 0) {
-            Write-Error "Smoke test failed with exit code $($p.ExitCode)"
-            exit $p.ExitCode
-          }
+          & .\dist\ChatGPTUsageWidget.exe --smoke-test
+          if ($LASTEXITCODE -ne 0) { throw "Smoke test failed with exit code $LASTEXITCODE" }
 
       - name: Prepare artifact
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path artifact -Force | Out-Null
-          Copy-Item .\src\publish\ChatGPTUsageWidget.exe .\artifact\
-          Copy-Item .\src\INSTALL_PREBUILT.cmd .\artifact\
-          Copy-Item .\src\README_RU.md .\artifact\
+          New-Item -ItemType Directory -Path .\artifact -Force | Out-Null
+          Copy-Item .\src\dist\ChatGPTUsageWidget.exe .\artifact\ChatGPTUsageWidget.exe
+          Copy-Item .\src\INSTALL_PREBUILT.cmd .\artifact\INSTALL_PREBUILT.cmd
+          Copy-Item .\src\README_RU.md .\artifact\README_RU.md
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ChatGPTUsageWidget-0.2.1-win-x64
-          path: artifact/
+          name: ChatGPTUsageWidget-0.3.0-win-x64
+          path: artifact/*
           if-no-files-found: error
           retention-days: 30
