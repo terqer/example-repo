@@ -38,6 +38,17 @@ jobs:
         working-directory: src
         run: dotnet build ChatGPTUsageWidget.csproj -c Release --no-restore
 
+      - name: Prepare test harness
+        working-directory: src
+        shell: pwsh
+        run: |
+          $path = '.\tests\ChatGPTUsageWidget.Tests\Program.cs'
+          $text = Get-Content $path -Raw
+          if ($text -notmatch 'using System\.IO;') {
+            $text = $text.Replace('using System.Text.Json;', "using System.Text.Json;`r`nusing System.IO;")
+            [IO.File]::WriteAllText((Resolve-Path $path), $text, [Text.UTF8Encoding]::new($false))
+          }
+
       - name: Logic tests
         working-directory: src
         run: dotnet run --project tests/ChatGPTUsageWidget.Tests/ChatGPTUsageWidget.Tests.csproj -c Release
