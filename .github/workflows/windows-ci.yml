@@ -66,33 +66,20 @@ jobs:
           @'
           import base64, gzip, hashlib, pathlib
           root = pathlib.Path('patch051')
-          parts = [(root / f'chunk.{i:02d}').read_text(encoding='utf-8') for i in range(6)]
-          parts = [''.join(p.split()) for p in parts]
+          names = ['chunk.00','chunk.01a','chunk.01b','chunk.02','chunk.03','chunk.04','chunk.05']
+          parts = [''.join((root / name).read_text(encoding='utf-8').split()) for name in names]
+          data = gzip.decompress(base64.b64decode(''.join(parts), validate=True))
           target = '230572315ade3f015fd835097bfae065dd8bccf8cba0f81ca1be4c7c671d8efe'
-          def try_decode(text):
-              try:
-                  raw = base64.b64decode(text, validate=True)
-                  data = gzip.decompress(raw)
-                  return data if hashlib.sha256(data).hexdigest() == target else None
-              except Exception:
-                  return None
-          data = try_decode(''.join(parts))
-          if data is None and len(parts[1]) == 6001:
-              original = parts[1]
-              for i in range(len(original)):
-                  candidate = parts.copy()
-                  candidate[1] = original[:i] + original[i+1:]
-                  data = try_decode(''.join(candidate))
-                  if data is not None:
-                      print(f'Repaired one-character corruption in chunk.01 at offset {i}.')
-                      break
-          if data is None:
-              raise SystemExit('Unable to reconstruct verified v0.5.1 patch.')
+          actual = hashlib.sha256(data).hexdigest()
+          if actual != target:
+              raise SystemExit(f'Patch hash mismatch: {actual}')
           pathlib.Path('v051.patch').write_bytes(data)
-          print('Verified patch SHA256:', hashlib.sha256(data).hexdigest())
+          print('Verified patch SHA256:', actual)
           '@ | python -
+          if (-not (Test-Path .\v051.patch)) { throw 'Verified patch was not created.' }
           git -C .\src050 init
           git -C .\src050 apply ..\v051.patch
+          if ($LASTEXITCODE -ne 0) { throw 'git apply failed.' }
           if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
 
       - name: Restore
