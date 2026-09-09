@@ -98,6 +98,16 @@ jobs:
           $newOrbit = 'Text(dc, Value(primary), new Rect(center.X - inner, center.Y - 30, inner * 2, 60), Math.Clamp(side * .105, 14, 34), White, FontWeights.SemiBold, TextAlignment.Center, true);'
           if (-not $surface.Contains($oldOrbit)) { throw 'Orbit percentage pattern not found.' }
           $surface = $surface.Replace($oldOrbit, $newOrbit)
+          $oldLabel = 'Text(dc, _profile.ShowFiveHour ? "5h" : LocalizationService.T(_language, "Week"), new Rect(center.X - inner, center.Y - inner * .42 - 24, inner * 2, 20), Math.Clamp(side * .038, 9, 13), Muted, FontWeights.Normal, TextAlignment.Center, true);'
+          $newLabel = 'Text(dc, _profile.ShowFiveHour ? "5h" : LocalizationService.T(_language, "Week"), new Rect(center.X + inner * .72, center.Y - inner * .72, outer * .62, 22), Math.Clamp(side * .038, 9, 13), Muted, FontWeights.Normal, TextAlignment.Left, true);'
+          if (-not $surface.Contains($oldLabel)) { throw 'Orbit label pattern not found.' }
+          $surface = $surface.Replace($oldLabel, $newLabel)
+          $oldWeek = 'Text(dc, $"{LocalizationService.T(_language, "Week")}  {Value(_state?.Weekly)}", new Rect(center.X - outer * .92, center.Y + outer + 7, outer * 1.84, 25), Math.Clamp(side * .042, 10, 15), Blue, FontWeights.SemiBold, TextAlignment.Center, true);'
+          $newWeek = 'Text(dc, $"W  {Value(_state?.Weekly)}", new Rect(center.X + outer * .10, center.Y + outer + 5, outer * .90, 25), Math.Clamp(side * .042, 10, 15), Blue, FontWeights.SemiBold, TextAlignment.Right, true);'
+          if (-not $surface.Contains($oldWeek)) { throw 'Orbit weekly pattern not found.' }
+          $surface = $surface.Replace($oldWeek, $newWeek)
+          $surface = $surface.Replace('if (!medium && _profile.ShowReset)', 'if (false && !medium && _profile.ShowReset)')
+          $surface = $surface.Replace('if (_profile.ShowResetCredits && side >= 230)', 'if (false && _profile.ShowResetCredits && side >= 230)')
           Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
 
           $tests = Get-Content .\src050\tests\ChatGPTUsageWidget.Tests\Program.cs -Raw
