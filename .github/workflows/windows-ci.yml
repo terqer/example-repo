@@ -89,6 +89,15 @@ jobs:
           git -C .\src050 apply ..\v051.patch
           if ($LASTEXITCODE -ne 0) { throw 'git apply failed.' }
           if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
+
+          # Correct WPF FormattedText origin: alignment is already handled by FormattedText.
+          # Using center/right as the drawing origin shifted text outside its intended Rect.
+          $surface = Get-Content .\src050\Controls\UsageSurface.cs -Raw
+          $old = 'var x = alignment switch { TextAlignment.Center => r.X + r.Width / 2, TextAlignment.Right => r.Right, _ => r.X };'
+          if (-not $surface.Contains($old)) { throw 'Text origin pattern not found.' }
+          $surface = $surface.Replace($old, 'var x = r.X;')
+          Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
+
           $tests = Get-Content .\src050\tests\ChatGPTUsageWidget.Tests\Program.cs -Raw
           $tests = $tests.Replace('settings.SchemaVersion == 5', 'settings.SchemaVersion == 6')
           $tests = $tests.Replace('Width == 48 && settings.Widgets[0].Height == 22', 'Width == 44 && settings.Widgets[0].Height == 22')
