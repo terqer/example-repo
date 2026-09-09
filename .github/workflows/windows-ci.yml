@@ -66,7 +66,7 @@ jobs:
           @'
           import base64, gzip, hashlib, pathlib
           root = pathlib.Path('patch051')
-          names = ['chunk.00','chunk.01a','chunk.01b','chunk.02','chunk.03','chunk.04','chunk.05']
+          names = ['chunk.00','chunk.01a','chunk.01b0','chunk.01b1','chunk.01b2','chunk.02','chunk.03','chunk.04','chunk.05']
           parts = [''.join((root / name).read_text(encoding='utf-8').split()) for name in names]
           data = gzip.decompress(base64.b64decode(''.join(parts), validate=True))
           target = '230572315ade3f015fd835097bfae065dd8bccf8cba0f81ca1be4c7c671d8efe'
