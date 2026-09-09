@@ -23,11 +23,15 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Expand tested source package
+      - name: Rebuild tested source package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src -Force | Out-Null
-          tar -xf .\source\ChatGPTUsageWidget-0.2.1-source.zip -C .\src
+          $parts = Get-ChildItem .\source\chunk.*.b64 | Sort-Object Name
+          if ($parts.Count -ne 7) { throw "Expected 7 source chunks, found $($parts.Count)." }
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          [IO.File]::WriteAllBytes('.\source\source.zip', [Convert]::FromBase64String($b64))
+          tar -xf .\source\source.zip -C .\src
           if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
 
       - name: Restore
