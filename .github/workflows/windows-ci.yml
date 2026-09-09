@@ -21,16 +21,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src050 -Force | Out-Null
-          $partNames = @(
-            'part.00',
-            'part.01',
-            'part.02.00',
-            'part.02.01',
-            'part.02.02',
-            'part.02.03',
-            'part.03',
-            'part.04'
-          )
+          $partNames = @('part.00','part.01','part.02.00','part.02.01','part.02.02','part.02.03','part.03','part.04')
           $missing = $partNames | Where-Object { -not (Test-Path (Join-Path '.\source050' $_)) }
           if ($missing) { throw "Missing source parts: $($missing -join ', ')" }
           $b64 = ($partNames | ForEach-Object { Get-Content (Join-Path '.\source050' $_) -Raw }) -join ''
@@ -59,15 +50,12 @@ jobs:
           global using Condition = System.Windows.Automation.Condition;
           global using WpfFlowDirection = System.Windows.FlowDirection;
           '@ | Set-Content .\src050\GlobalAliases.cs -Encoding UTF8
-
           $proj = Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw
           $proj = $proj -replace '(?s)\s*<ItemGroup>\s*<Reference Include="UIAutomationClient"\s*/>\s*<Reference Include="UIAutomationTypes"\s*/>\s*</ItemGroup>', ''
           Set-Content .\src050\ChatGPTUsageWidget.csproj $proj -Encoding UTF8
-
           $widget = Get-Content .\src050\WidgetWindow.xaml.cs -Raw
           $widget = $widget.Replace('var left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;', 'bool left = p.X <= edge, right = p.X >= ActualWidth - edge, top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;')
           Set-Content .\src050\WidgetWindow.xaml.cs $widget -Encoding UTF8
-
           $surface = Get-Content .\src050\Controls\UsageSurface.cs -Raw
           $surface = $surface.Replace('FlowDirection.LeftToRight', 'WpfFlowDirection.LeftToRight')
           Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
@@ -75,18 +63,34 @@ jobs:
       - name: Apply 0.5.1 redesign patch
         shell: pwsh
         run: |
-          $patchParts = 0..5 | ForEach-Object { '.\patch051\chunk.{0:D2}' -f $_ }
-          $missing = $patchParts | Where-Object { -not (Test-Path $_) }
-          if ($missing) { throw "Missing patch chunks: $($missing -join ', ')" }
-          $b64 = (($patchParts | ForEach-Object { Get-Content $_ -Raw }) -join '') -replace '\s',''
-          [IO.File]::WriteAllBytes('.\v051.patch.gz', [Convert]::FromBase64String($b64))
-          $in = [IO.File]::OpenRead('.\v051.patch.gz')
-          $gz = [IO.Compression.GzipStream]::new($in, [IO.Compression.CompressionMode]::Decompress)
-          $out = [IO.File]::Create('.\v051.patch')
-          $gz.CopyTo($out)
-          $out.Dispose(); $gz.Dispose(); $in.Dispose()
-          $patchSha = (Get-FileHash .\v051.patch -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($patchSha -ne '230572315ade3f015fd835097bfae065dd8bccf8cba0f81ca1be4c7c671d8efe') { throw "Patch hash mismatch: $patchSha" }
+          @'
+          import base64, gzip, hashlib, pathlib
+          root = pathlib.Path('patch051')
+          parts = [(root / f'chunk.{i:02d}').read_text(encoding='utf-8') for i in range(6)]
+          parts = [''.join(p.split()) for p in parts]
+          target = '230572315ade3f015fd835097bfae065dd8bccf8cba0f81ca1be4c7c671d8efe'
+          def try_decode(text):
+              try:
+                  raw = base64.b64decode(text, validate=True)
+                  data = gzip.decompress(raw)
+                  return data if hashlib.sha256(data).hexdigest() == target else None
+              except Exception:
+                  return None
+          data = try_decode(''.join(parts))
+          if data is None and len(parts[1]) == 6001:
+              original = parts[1]
+              for i in range(len(original)):
+                  candidate = parts.copy()
+                  candidate[1] = original[:i] + original[i+1:]
+                  data = try_decode(''.join(candidate))
+                  if data is not None:
+                      print(f'Repaired one-character corruption in chunk.01 at offset {i}.')
+                      break
+          if data is None:
+              raise SystemExit('Unable to reconstruct verified v0.5.1 patch.')
+          pathlib.Path('v051.patch').write_bytes(data)
+          print('Verified patch SHA256:', hashlib.sha256(data).hexdigest())
+          '@ | python -
           git -C .\src050 init
           git -C .\src050 apply ..\v051.patch
           if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
