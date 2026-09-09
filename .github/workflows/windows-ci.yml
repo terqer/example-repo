@@ -17,7 +17,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Rebuild source package
+      - name: Rebuild baseline source package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path src -Force | Out-Null
@@ -26,9 +26,20 @@ jobs:
           $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
           [IO.File]::WriteAllBytes('.\source\source.zip', [Convert]::FromBase64String($b64))
           $sha = (Get-FileHash .\source\source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne 'c8b63c127aa46ac1bfbe0d16c5eb5e2736e9e73678da5e0e6bc5321a30822c57') { throw "Source package hash mismatch: $sha" }
+          if ($sha -ne 'c8b63c127aa46ac1bfbe0d16c5eb5e2736e9e73678da5e0e6bc5321a30822c57') { throw "Baseline source package hash mismatch: $sha" }
           tar -xf .\source\source.zip -C .\src
           if (-not (Test-Path .\src\ChatGPTUsageWidget.csproj)) { throw "Source package did not extract correctly." }
+
+      - name: Apply taskbar polish patch
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem .\source\taskbar-patch\chunk.*.b64 | Sort-Object Name
+          if ($parts.Count -ne 4) { throw "Expected 4 patch chunks, found $($parts.Count)." }
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          [IO.File]::WriteAllBytes('.\source\taskbar-patch.zip', [Convert]::FromBase64String($b64))
+          $sha = (Get-FileHash .\source\taskbar-patch.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '0fb61fdb2380f2a9d4ce734d276d8ba32989f3b7baebea740c79d4ff5fdce1a0') { throw "Taskbar patch hash mismatch: $sha" }
+          tar -xf .\source\taskbar-patch.zip -C .\src
 
       - name: Restore
         working-directory: src
