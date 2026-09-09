@@ -90,12 +90,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'git apply failed.' }
           if (-not ((Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw) -match '<Version>0\.5\.1</Version>')) { throw '0.5.1 patch did not apply.' }
 
-          # Correct WPF FormattedText origin: alignment is already handled by FormattedText.
-          # Using center/right as the drawing origin shifted text outside its intended Rect.
           $surface = Get-Content .\src050\Controls\UsageSurface.cs -Raw
-          $old = 'var x = alignment switch { TextAlignment.Center => r.X + r.Width / 2, TextAlignment.Right => r.Right, _ => r.X };'
-          if (-not $surface.Contains($old)) { throw 'Text origin pattern not found.' }
-          $surface = $surface.Replace($old, 'var x = r.X;')
+          $oldOrigin = 'var x = alignment switch { TextAlignment.Center => r.X + r.Width / 2, TextAlignment.Right => r.Right, _ => r.X };'
+          if (-not $surface.Contains($oldOrigin)) { throw 'Text origin pattern not found.' }
+          $surface = $surface.Replace($oldOrigin, 'var x = r.X;')
+          $oldOrbit = 'Text(dc, Value(primary), new Rect(center.X - inner * .85, center.Y - 20, inner * 1.70, 40), Math.Clamp(side * .105, 14, 34), White, FontWeights.SemiBold, TextAlignment.Center, true);'
+          $newOrbit = 'Text(dc, Value(primary), new Rect(center.X - inner, center.Y - 30, inner * 2, 60), Math.Clamp(side * .105, 14, 34), White, FontWeights.SemiBold, TextAlignment.Center, true);'
+          if (-not $surface.Contains($oldOrbit)) { throw 'Orbit percentage pattern not found.' }
+          $surface = $surface.Replace($oldOrbit, $newOrbit)
           Set-Content .\src050\Controls\UsageSurface.cs $surface -Encoding UTF8
 
           $tests = Get-Content .\src050\tests\ChatGPTUsageWidget.Tests\Program.cs -Raw
