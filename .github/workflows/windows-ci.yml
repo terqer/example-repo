@@ -65,8 +65,8 @@ jobs:
         working-directory: src
         shell: pwsh
         run: |
-          & .\dist\ChatGPTUsageWidget.exe --smoke-test
-          if ($LASTEXITCODE -ne 0) { throw "Smoke test failed with exit code $LASTEXITCODE" }
+          $process = Start-Process -FilePath '.\dist\ChatGPTUsageWidget.exe' -ArgumentList '--smoke-test' -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) { throw "Smoke test failed with exit code $($process.ExitCode)" }
 
       - name: Prepare artifact
         shell: pwsh
