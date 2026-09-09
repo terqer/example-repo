@@ -49,6 +49,9 @@ jobs:
           global using Button = System.Windows.Controls.Button;
           global using Condition = System.Windows.Automation.Condition;
           global using WpfFlowDirection = System.Windows.FlowDirection;
+          global using Directory = System.IO.Directory;
+          global using Path = System.IO.Path;
+          global using File = System.IO.File;
           '@ | Set-Content .\src050\GlobalAliases.cs -Encoding UTF8
           $proj = Get-Content .\src050\ChatGPTUsageWidget.csproj -Raw
           $proj = $proj -replace '(?s)\s*<ItemGroup>\s*<Reference Include="UIAutomationClient"\s*/>\s*<Reference Include="UIAutomationTypes"\s*/>\s*</ItemGroup>', ''
